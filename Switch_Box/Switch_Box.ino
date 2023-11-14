@@ -31,7 +31,7 @@ void loop() {
     Serial.println(text);
 
     sendMode();
-    char send[20] = "hello";
+    char send[20] = "hello, I am switch";
     radio.write(&send, sizeof(send));
   }
 }

@@ -25,7 +25,7 @@ void loop() {
     Serial.println(text);
 
     sendMode();
-    char send[20] = "hello";
+    char send[20] = "hello, I am AirCleaner.";
     radio.write(&send, sizeof(send));
   }
 }
