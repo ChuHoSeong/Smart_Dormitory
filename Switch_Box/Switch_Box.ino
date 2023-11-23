@@ -1,60 +1,49 @@
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
-#include <stdio.h>
-#include <string.h>
 
-#include <Servo.h>
+RF24 radio(10, 9);
+const byte address[6] = "00003";
 
-RF24 radio(10, 9); // SPI 버스에 nRF24L01 라디오를 설정하기 위해 CE, CSN를 선언.
-const byte address[6] = "00001"; //주소값을 5가지 문자열로 변경할 수 있으며, 송신기와 수신기가 동일한 주소로 해야됨.
+typedef struct {
+  bool power[3];
+} SWI;
+
+
+SWI switchControl = {
+  {1,0,1}
+};
 
 void setup() {
-  //init Serial
   Serial.begin(9600);
-  //init RF
   radio.begin();
-  reciveMode();
-  //init servo
-  pinMode(10,OUTPUT);
-  okservo.attach(10);
-  okservo.write(100);
 }
 
 void loop() {
-  reciveMode();
-  if(radio.available())
-  {
-    char text[20] = "";
-    radio.read(&text, sizeof(text));
-    Serial.print("catched : ");
-    Serial.println(text);
-
-    sendMode();
-    char send[20] = "hello, I am switch";
-    radio.write(&send, sizeof(send));
+  setReceiveMode();
+  if (radio.available()) {
+    Serial.println("Data received");
+    radio.read(&switchControl, sizeof(SWI));
+    processSwitchData();
+    setSendMode();
+    radio.write(&switchControl, sizeof(SWI));
   }
 }
 
-//switch RF to send_mode
-void sendMode(){
-  radio.openWritingPipe(address); //이전에 설정한 5글자 문자열인 데이터를 보낼 수신의 주소를 설정
-  radio.setPALevel(RF24_PA_MIN); //전원공급에 관한 파워레벨을 설정합니다. 모듈 사이가 가까우면 최소로 설정합니다.
+void processSwitchData() {
+  switchControl.power[0] = random(0, 1); //여기에 스위치 on/off여부 정보를 넣어주면 됩니다. 잉요 화이팅
+ }
+
+void setSendMode(){
+  radio.openWritingPipe(address);
+  radio.setPALevel(RF24_PA_MIN);
   radio.stopListening();
-  Serial.println("send_mode");
+  Serial.println("Send mode set");
 }
-//switch RF to recive_mode
-void reciveMode(){
-  radio.openReadingPipe(0,address); //이전에 설정한 5글자 문자열인 데이터를 보낼 수신의 주소를 설정
-  radio.setPALevel(RF24_PA_MIN); //전원공급에 관한 파워레벨을 설정합니다. 모듈 사이가 가까우면 최소로 설정합니다.
+
+void setReceiveMode(){
+  radio.openReadingPipe(0, address);
+  radio.setPALevel(RF24_PA_MIN);
   radio.startListening();
-  Serial.println("recive_mode");
+  Serial.println("Receive mode set");
 }
-
-//activate servo
-void act(){
-  okservo.write(180);
-  delay(200);
-  okservo.write(100);
-}
-

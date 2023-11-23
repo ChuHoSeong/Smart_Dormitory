@@ -1,46 +1,54 @@
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
-#include <stdio.h>
-#include <string.h>
 
-RF24 radio(10, 9); // SPI 버스에 nRF24L01 라디오를 설정하기 위해 CE, CSN를 선언.
-const byte address[6] = "00001"; //주소값을 5가지 문자열로 변경할 수 있으며, 송신기와 수신기가 동일한 주소로 해야됨.
+RF24 radio(10, 9);
+const byte address[6] = "00002";
+
+typedef struct {
+  bool power;
+  int temp;
+  int humidity;
+} HUM;
+
+HUM humidifier = {
+  true,
+  0,
+  0
+};
 
 void setup() {
-  //init Serial
   Serial.begin(9600);
-  //init RF
   radio.begin();
-  reciveMode();
 }
 
 void loop() {
-  reciveMode();
-  if(radio.available())
-  {
-    char text[20] = "";
-    radio.read(&text, sizeof(text));
-    Serial.print("catched : ");
-    Serial.println(text);
-
-    sendMode();
-    char send[20] = "hello, I am humidifier";
-    radio.write(&send, sizeof(send));
+  setReceiveMode();
+  if (radio.available()) {
+    Serial.println("Data received");
+    radio.read(&humidifier, sizeof(HUM));
+    processHumidifityData();
+    setSendMode();
+    radio.write(&humidifier, sizeof(HUM));
   }
 }
 
-//switch RF to send_mode
-void sendMode(){
-  radio.openWritingPipe(address); //이전에 설정한 5글자 문자열인 데이터를 보낼 수신의 주소를 설정
-  radio.setPALevel(RF24_PA_MIN); //전원공급에 관한 파워레벨을 설정합니다. 모듈 사이가 가까우면 최소로 설정합니다.
-  radio.stopListening();
-  Serial.println("send_mode");
+void processHumidifityData() {
+  // 랜덤한 온도와 습도 값을 생성합니다.
+  humidifier.temp = random(15, 30); // 온도를 15 ~ 30도 사이로 설정
+  humidifier.humidity = random(30, 80); // 습도를 30% ~ 80% 사이로 설정
 }
-//switch RF to recive_mode
-void reciveMode(){
-  radio.openReadingPipe(0,address); //이전에 설정한 5글자 문자열인 데이터를 보낼 수신의 주소를 설정
-  radio.setPALevel(RF24_PA_MIN); //전원공급에 관한 파워레벨을 설정합니다. 모듈 사이가 가까우면 최소로 설정합니다.
+
+void setSendMode(){
+  radio.openWritingPipe(address);
+  radio.setPALevel(RF24_PA_MIN);
+  radio.stopListening();
+  Serial.println("Send mode set");
+}
+
+void setReceiveMode(){
+  radio.openReadingPipe(0, address);
+  radio.setPALevel(RF24_PA_MIN);
   radio.startListening();
-  Serial.println("recive_mode");
+  Serial.println("Receive mode set");
 }
