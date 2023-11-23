@@ -7,31 +7,65 @@ const byte address[6] = "00003";
 
 typedef struct {
   bool power[3];
+  bool changed;
 } SWI;
 
 
-SWI switchControl = {
-  {1,0,1}
-};
+SWI switchControl;
+SWI recivedData;
 
 void setup() {
   Serial.begin(9600);
   radio.begin();
-}
 
+  recivedData = {{0,0,0},0};
+  switchControl = {{0,0,0},0};
+  //processSwitchData();
+}
 void loop() {
+  //스위치감지
+  //버튼 누르면 recivedData.power[] 값 변경, switchControl.changed = true;
+  recivedData.power[0] = random(0,2);
+  recivedData.power[1] = random(0,2);
+  recivedData.power[2] = random(0,2);
+  
+  processSwitchData();
+  
+  switchControl = recivedData;
   setReceiveMode();
   if (radio.available()) {
     Serial.println("Data received");
-    radio.read(&switchControl, sizeof(SWI));
-    processSwitchData();
-    setSendMode();
-    radio.write(&switchControl, sizeof(SWI));
+    char request[4];
+    radio.read(&request, sizeof(request));
+    if(strcmp(request, "get")==0)
+    {
+      setSendMode();
+      radio.write(&switchControl, sizeof(SWI));
+      //switchControl.changed = false;
+    }
+    else if(strcmp(request, "put")==0)
+    {
+      setReceiveMode();
+      radio.read(&recivedData, sizeof(SWI));
+    }
   }
 }
 
 void processSwitchData() {
-  switchControl.power[0] = random(0, 1); //여기에 스위치 on/off여부 정보를 넣어주면 됩니다. 잉요 화이팅
+  for(int i = 0;i<3;i++)
+  {
+    if(switchControl.power[i] == recivedData.power[i])continue;
+    else if(switchControl.power[i] < recivedData.power[i])
+    {
+      //i번 스위치 on
+    }
+    else if(switchControl.power[i] > recivedData.power[i])
+    {
+      //i번 스위치 off
+    }
+    switchControl.power[i] = recivedData.power[i];
+    switchControl.changed = true;
+  }
  }
 
 void setSendMode(){
