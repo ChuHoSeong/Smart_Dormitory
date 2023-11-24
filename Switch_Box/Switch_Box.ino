@@ -1,7 +1,13 @@
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
+#include <Servo.h>
 
+Servo servo1;
+Servo servo2;
+Servo servo3;
+
+Servo* servos[3] = {&servo1, &servo2, &servo3};
 RF24 radio(10, 9);
 const byte address[6] = "00003";
 
@@ -18,9 +24,17 @@ void setup() {
   Serial.begin(9600);
   radio.begin();
 
+  servo1.attach(7);
+  servo2.attach(6);
+  servo3.attach(5);
+
+
   recivedData = {{0,0,0},0};
   switchControl = {{0,0,0},0};
   //processSwitchData();
+
+  
+  servo1.write(100);
 }
 void loop() {
   //스위치감지
@@ -58,6 +72,10 @@ void processSwitchData() {
     else if(switchControl.power[i] < recivedData.power[i])
     {
       //i번 스위치 on
+      servos[i]->write(90);
+      delay(300);
+      servos[i]->write(180);
+      servo1.write(180);
     }
     else if(switchControl.power[i] > recivedData.power[i])
     {
