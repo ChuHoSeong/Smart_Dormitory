@@ -26,159 +26,122 @@ typedef struct {
   bool changed;
 } SwitchData; // 스위치 데이터 구조체
 
+// 각 장치에 대한 데이터를 포함하는 구조체 정의
 struct AIR{
   AirCleanerData origin;
   AirCleanerData device;
   AirCleanerData cloude;
 }airCleaner;
+
 struct HUM{
   HumidifierData origin;
   HumidifierData device;
   HumidifierData cloude;
 }humidifier;
+
 struct SWI{
   SwitchData origin;
   SwitchData device;
   SwitchData cloude;
 }switchControl;
 
-RF24 radio(10, 9); // RF24 객체 (CE, CSN 핀 번호)
+RF24 radio(10, 9); // RF24 객체 생성 (CE, CSN 핀 번호 지정)
 
+// 초기 설정 함수
 void setup() {
-  Serial.begin(9600);
-  radio.begin();
-  init(AIR_CLEANER_ADDRESS, &airCleaner, sizeof(AirCleanerData), "Air Cleaner");
-  init(HUMIDIFIER_ADDRESS, &humidifier, sizeof(HumidifierData), "Humidifier");
-  init(SWITCH_ADDRESS, &switchControl, sizeof(SwitchData), "Switch");
+  Serial.begin(9600); // 시리얼 통신 시작
+  radio.begin(); // 라디오 통신 시작
+  // 각 장치에 대한 초기화 수행
+  init(AIR_CLEANER_ADDRESS, airCleaner, "Air Cleaner");
+  init(HUMIDIFIER_ADDRESS, humidifier, "Humidifier");
+  init(SWITCH_ADDRESS, switchControl, "Switch");
 }
 
-void init(const byte address[], void* data, size_t dataSize, const char* deviceName) {
-  get(address, data, dataSize, deviceName);
-  // Casting void* to appropriate data type
-  if (strcmp(deviceName, "Air Cleaner") == 0) {
-    ((AIR*)data)->origin = ((AIR*)data)->device;
-    ((AIR*)data)->cloude = ((AIR*)data)->device;
-  } else if (strcmp(deviceName, "Humidifier") == 0) {
-    ((HUM*)data)->origin = ((HUM*)data)->device;
-    ((HUM*)data)->cloude = ((HUM*)data)->device;
-  } else if (strcmp(deviceName, "Switch") == 0) {
-    ((SWI*)data)->origin = ((SWI*)data)->device;
-    ((SWI*)data)->cloude = ((SWI*)data)->device;
-  }
+// 장치 데이터를 초기화하는 템플릿 함수
+template<typename T>
+void init(const byte address[], T &deviceData, const char* deviceName) {
+  // 장치에서 데이터를 가져옵니다.
+  get(address, &deviceData.device, sizeof(T), deviceName);
+  // 장치의 'origin'과 'cloude' 상태를 현재 장치 상태로 초기화(동기화)합니다.
+  deviceData.origin = deviceData.device;
+  deviceData.cloude = deviceData.device;
+  /*put : 서버에 deviceData.cloude 값 업로드 (deviceName변수값에따라 구분해서 접근해야할듯)*/
 }
 
+// 메인 루프 함수
 void loop() {
-  Serial.println(analogRead(A0)); // Print light sensor value
+  Serial.println(analogRead(A0)); // 아날로그 핀에서 읽은 값을 출력
 
-  updateAirCleanerData();
-  updateHumidifierData();
-  updateSwitchData();
+  // 공기청정기, 가습기, 스위치에 대해 템플릿 함수를 사용하여 업데이트합니다.
+  updateDeviceData(AIR_CLEANER_ADDRESS, airCleaner, "Air Cleaner");
+  updateDeviceData(HUMIDIFIER_ADDRESS, humidifier, "Humidifier");
+  updateDeviceData(SWITCH_ADDRESS, switchControl, "Switch");
   Serial.println("--------------------");
-  delay(100); // Wait for 1 second
+  delay(100); // 100ms 지연
 }
-void get(const byte address[], void* data, size_t dataSize, const char* deviceName){
-  setSendMode(address);
-  char request[4] = "get";
-  radio.write(&request, sizeof(request));
-  Serial.println(String(deviceName) + " : get : write"); // 데이터 전송 완료 메시지 출력
 
+template<typename T>
+void updateDeviceData(const byte address[], T &deviceData, const char* deviceName) {
+  // 장치에서 최신 데이터를 가져옵니다.
+  get(address, &deviceData.device, sizeof(T), deviceName);
+  /*get : 서버에서 deviceData.cloude로 데이터 가져오기 (deviceName변수값에따라 구분해서 접근해야할듯)*/
+
+  if(deviceData.device.changed) {// 장치 데이터에 변화가 있는 경우
+    // 장치의 현재 상태를 'origin'과 'cloude'에 반영합니다.
+    deviceData.origin = deviceData.device;
+    deviceData.cloude = deviceData.device;
+  } 
+  else if (deviceData.cloude.changed) { // 클라우드 데이터에 변화가 있는 경우
+    // 클라우드의 상태를 'origin'과 장치에 반영합니다.
+    deviceData.origin = deviceData.cloude;
+    deviceData.device = deviceData.cloude;
+  } 
+  else {// 변경 사항이 없는 경우
+    Serial.println("[no changed]");
+  }
+
+  // 변경 플래그를 초기화합니다.
+  deviceData.device.changed = false;
+  deviceData.cloude.changed = false;
+
+  // 변경된 데이터를 장치 및 서버에 업데이트합니다.
+  put(address, &deviceData.device, sizeof(T), deviceName);
+  /*put : 서버에 deviceData.cloude 값을 업로드 (deviceName변수값에따라 구분해서 접근해야할듯)*/
+}
+
+// 특정 주소의 장치로부터 데이터를 받아오는 함수
+void get(const byte address[], void* data, size_t dataSize, const char* deviceName){
+  setSendMode(address); // 데이터 전송 모드로 설정
+  char request[4] = "get"; // 'get' 요청 메시지
+  radio.write(&request, sizeof(request)); // 요청 메시지 전송
+  Serial.println(String(deviceName) + " : get : write"); // 로그 출력
+
+  // 데이터 수신 확인
   if (!receiveDataWithTimeout(address)) {
-    Serial.println(String("*") + deviceName + " system is turned off"); // 시스템이 꺼져 있는 경우 메시지 출력
+    Serial.println(String("*") + deviceName + " system is turned off"); // 시스템 꺼짐 메시지 출력
   }
   else {
-    radio.read(data, dataSize);
-    printDeviceData(data, deviceName); // 데이터 출력 함수 호출
+    radio.read(data, dataSize); // 데이터 수신
+    printDeviceData(data, deviceName); // 데이터 출력
   }
 }
+
+// 특정 주소의 장치에 데이터를 전송하는 함수
 void put(const byte address[], void* data, size_t dataSize, const char* deviceName){
-  setSendMode(address);
-  char request[4] = "put";
-  radio.write(&request, sizeof(request));
-  Serial.println(String(deviceName) + " : put : write"); // 데이터 전송 완료 메시지 출력
-  delay(100);//혹시몰라서 딜레이
-  setSendMode(address);
-  radio.write(&data, dataSize);
-  Serial.println(String(deviceName) + " : data : write"); 
-}
-void updateAirCleanerData(){
-  get(AIR_CLEANER_ADDRESS, &airCleaner.device, sizeof(AirCleanerData), "Air Cleaner");
-  /*get : 서버에서 데이터 가져오와  airCleaner.cloude에 넣기*/
-  if(airCleaner.device.changed)
-  {
-    //device >> origin >> cloude
-    airCleaner.origin = airCleaner.device;
-    airCleaner.cloude = airCleaner.device;
-    //put(AIR_CLEANER_ADDRESS, &airCleaner.device, sizeof(AirCleanerData), "Air Cleaner");
-  }
-  else if (airCleaner.cloude.changed)
-  {
-    //cloude >> origin >> device
-    airCleaner.origin =   airCleaner.cloude;
-    airCleaner.device =   airCleaner.cloude;
-  }
-  else
-  {
-    Serial.println("[no changed]");
-  }
-  airCleaner.device.changed = false;
-  airCleaner.cloude.changed = false;
-  put(AIR_CLEANER_ADDRESS, &airCleaner.device, sizeof(AirCleanerData), "Air Cleaner");
-  /*put : 서버에  airCleaner.cloude 업로드*/
-}
-void updateHumidifierData(){
-  get(HUMIDIFIER_ADDRESS, &humidifier.device, sizeof(HumidifierData), "Humidifier");
-  /*get : 서버에서 데이터 가져오와  humidifier.cloude에 넣기*/
-  if(humidifier.device.changed)
-  {
-    //device >> origin >> cloude
-    humidifier.origin = humidifier.device;
-    humidifier.cloude = humidifier.device;
-  }
-  else if (humidifier.cloude.changed)
-  {
-    //cloude >> origin >> device
-    humidifier.origin = humidifier.cloude;
-    humidifier.device = humidifier.cloude;
-  }
-  else
-  {
-    Serial.println("[no changed]");
-  }
-  humidifier.device.changed = false;
-  humidifier.cloude.changed = false;
-  put(HUMIDIFIER_ADDRESS, &humidifier.device, sizeof(HumidifierData), "Humidifier");
-  /*put : 서버에  humidifier.cloude 업로드*/
-}
-void updateSwitchData() {
-  get(SWITCH_ADDRESS, &switchControl.device, sizeof(SwitchData), "Switch");
-  /*get : 서버에서 데이터 가져오와  switchControl.cloude에 넣기*/
-  if(switchControl.device.changed)
-  {
-    //device >> origin >> cloude
-    switchControl.origin = switchControl.device;
-    switchControl.cloude = switchControl.device;
-  }
-  else if (switchControl.cloude.changed)
-  {
-    //cloude >> origin >> device
-    switchControl.origin =  switchControl.cloude;
-    switchControl.device =  switchControl.cloude;
-  }
-  else
-  {
-    Serial.println("[no changed]");
-  }
-  switchControl.device.changed = false;
-  switchControl.cloude.changed = false;
-  put(SWITCH_ADDRESS, &switchControl.device, sizeof(SwitchData), "Switch");
-  /*put : 서버에  switchControl.cloude 업로드*/
+  setSendMode(address); // 데이터 전송 모드 설정
+  char request[4] = "put"; // 'put' 요청 메시지
+  radio.write(&request, sizeof(request)); // 요청 메시지 전송
+  Serial.println(String(deviceName) + " : put : write"); // 로그 출력
+  delay(100); // 안전을 위한 지연
+  radio.write(data, dataSize); // 데이터 전송
+  Serial.println(String(deviceName) + " : data : write"); // 로그 출력
 }
 
-// 데이터 전송 및 응답 수신 함수
-
+// 각 장치 데이터를 업데이트하는 템플릿 함수
 
 // 장치 데이터를 출력하는 함수
 void printDeviceData(void* data, const char* deviceName) {
+  // 각 장치 타입에 따라 적절한 데이터 형식으로 캐스팅하여 출력
   if (strcmp(deviceName, "Air Cleaner") == 0) {
     AirCleanerData* acData = (AirCleanerData*)data;
     Serial.print("* Power: "); Serial.print(acData->power);
@@ -202,28 +165,29 @@ void printDeviceData(void* data, const char* deviceName) {
 
 // 타임아웃을 설정하여 데이터 수신 여부를 확인하는 함수
 bool receiveDataWithTimeout(const byte address[]) {
-  unsigned long startTime = millis();
-  setReceiveMode(address);
-  while (millis() - startTime < 500) { // 0.5초 동안 데이터 수신 대기
+  unsigned long startTime = millis(); // 시작 시간 기록
+  setReceiveMode(address); // 데이터 수신 모드 설정
+  // 0.5초 동안 데이터 수신 대기
+  while (millis() - startTime < 500) { 
     if (radio.available()) {
-      return true;
+      return true; // 데이터 수신 성공
     }
   }
-  return false;
+  return false; // 타임아웃 발생
 }
 
 // 데이터 전송 모드 설정 함수
 void setSendMode(const byte address[]){
-  radio.openWritingPipe(address);
-  radio.setPALevel(RF24_PA_MIN);
-  radio.stopListening();
-  Serial.println("Send mode set"); // 전송 모드 설정 완료 메시지 출력
+  radio.openWritingPipe(address); // 쓰기 파이프 열기
+  radio.setPALevel(RF24_PA_MIN); // 전력 수준 설정
+  radio.stopListening(); // 수신 중단
+  Serial.println("Send mode set"); // 로그 출력
 }
 
 // 데이터 수신 모드 설정 함수
 void setReceiveMode(const byte address[]){
-  radio.openReadingPipe(0, address);
-  radio.setPALevel(RF24_PA_MIN);
-  radio.startListening();
-  Serial.println("Receive mode set"); // 수신 모드 설정 완료 메시지 출력
+  radio.openReadingPipe(0, address); // 읽기 파이프 열기
+  radio.setPALevel(RF24_PA_MIN); // 전력 수준 설정
+  radio.startListening(); // 수신 시작
+  Serial.println("Receive mode set"); // 로그 출력
 }
