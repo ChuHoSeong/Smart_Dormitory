@@ -60,7 +60,7 @@ void setup() {
 template<typename T>
 void init(const byte address[], T &deviceData, const char* deviceName) {
   // 장치에서 데이터를 가져옵니다.
-  get(address, &deviceData.device, sizeof(T), deviceName);
+  get(address, &deviceData.device, sizeof(deviceData.device), deviceName);
   // 장치의 'origin'과 'cloude' 상태를 현재 장치 상태로 초기화(동기화)합니다.
   deviceData.cloude = deviceData.device;
   /*put : 서버에 deviceData.cloude 값 업로드 (deviceName변수값에따라 구분해서 접근해야할듯)*/
@@ -72,8 +72,8 @@ void loop() {
 
   // 공기청정기, 가습기, 스위치에 대해 템플릿 함수를 사용하여 업데이트합니다.
 
-  //updateDeviceData(AIR_CLEANER_ADDRESS, airCleaner, "Air Cleaner");
-  //updateDeviceData(HUMIDIFIER_ADDRESS, humidifier, "Humidifier");
+  updateDeviceData(AIR_CLEANER_ADDRESS, airCleaner, "Air Cleaner");
+  updateDeviceData(HUMIDIFIER_ADDRESS, humidifier, "Humidifier");
   updateDeviceData(SWITCH_ADDRESS, switchControl, "Switch");
   Serial.println("--------------------");
   delay(1000); // 100ms 지연
@@ -83,24 +83,19 @@ template<typename T>
 void updateDeviceData(const byte address[], T &deviceData, const char* deviceName) {
   
   // 장치에서 최신 데이터를 가져옵니다.
-  get(address, &deviceData.device, sizeof(T), deviceName);
+  get(address, &deviceData.device, sizeof(deviceData.device), deviceName);
   /*get : 서버에서 deviceData.cloude로 데이터 가져오기 (deviceName변수값에따라 구분해서 접근해야할듯)*/
 
   if(deviceData.device.changed) {// 장치 데이터에 변화가 있는 경우
     deviceData.device.changed = false;
-    // 장치의 현재 상태를 'origin'과 'cloude'에 반영합니다.
+    // 장치의 변화를 'cloude'에 반영합니다.
     Serial.println("change detected device");
-    // printDeviceData(&deviceData.cloude, deviceName);
-    // printDeviceData(&deviceData.device, deviceName);
     deviceData.cloude = deviceData.device;
-    // Serial.println("changed");
-    // printDeviceData(&deviceData.cloude, deviceName);
-    // printDeviceData(&deviceData.device, deviceName);
     /*put : 서버에 deviceData.cloude 값을 업로드 (deviceName변수값에따라 구분해서 접근해야할듯)*/
   } 
   else if (deviceData.cloude.changed) { // 클라우드 데이터에 변화가 있는 경우
     deviceData.cloude.changed = false;
-    // 클라우드의 상태를 'origin'과 장치에 반영합니다.
+    // 클라우드의 변화를 장치에 반영합니다.
     Serial.println("change detected cloude");
     deviceData.device = deviceData.cloude;
     put(address, &deviceData.device, sizeof(T), deviceName);
@@ -132,7 +127,7 @@ void get(const byte address[], void* data, size_t dataSize, const char* deviceNa
   }
   else {
     radio.read(data, dataSize); // 데이터 수신
-    switchControl.cloude = test_s;
+    //switchControl.cloude = test_s;
     printDeviceData(data, deviceName); // 데이터 출력
   }
   
