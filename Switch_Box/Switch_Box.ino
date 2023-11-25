@@ -63,52 +63,6 @@ void loop() {
   }
 }
 
-
-/*
-  processSwitchData();
-  
-  switchControl = recivedData;
-  setReceiveMode();
-  if (radio.available()) {
-    Serial.println("Data received");
-    char request[4];
-    radio.read(&request, sizeof(request));
-    if(strcmp(request, "get")==0)
-    {
-      setSendMode();
-      radio.write(&switchControl, sizeof(SWI));
-      //switchControl.changed = false;
-    }
-    else if(strcmp(request, "put")==0)
-    {
-      setReceiveMode();
-      radio.read(&recivedData, sizeof(SWI));
-    }
-  }
-}*/
-/*
-void processSwitchData() {
-  for(int i = 0;i<3;i++)
-  {
-    if(switchControl.power[i] == recivedData.power[i])continue;
-    else if(switchControl.power[i] < recivedData.power[i])
-    {
-      //i번 스위치 on
-      servos[i]->write(90);
-      delay(300);
-      servos[i]->write(180);
-      servo1.write(180);
-
-    }
-    else if(switchControl.power[i] > recivedData.power[i])
-    {
-      //i번 스위치 off
-    }
-    switchControl.power[i] = recivedData.power[i];
-    switchControl.changed = true;
-  }
- }
-*/
 void processSwitchData() {
   for (int i = 0; i < 3; i++) {
     if (switchControl.power[i] == recivedData.power[i]) continue;
