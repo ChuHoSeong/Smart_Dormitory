@@ -7,7 +7,17 @@ Servo servo1;
 Servo servo2;
 Servo servo3;
 
-Servo* servos[3] = {&servo1, &servo2, &servo3};
+struct SERVO{
+  Servo* servoPtr;
+  int buttonPin;
+  bool prv_value;
+};
+
+SERVO servos[3];
+
+
+
+
 RF24 radio(10, 9);
 const byte address[6] = "00003";
 
@@ -19,7 +29,6 @@ typedef struct {
 
 SWI switchControl;
 SWI recivedData;
-int switchPins[3] = {2, 3, 4};
 
 void setup() {
   Serial.begin(9600);
@@ -29,74 +38,117 @@ void setup() {
   servo2.attach(6);
   servo3.attach(5);
 
-  for (int i = 0; i < 3; i++) {
-    pinMode(switchPins[i], INPUT_PULLUP);
-  }
+  servos[0].servoPtr = &servo1;
+  servos[1].servoPtr = &servo2;
+  servos[2].servoPtr = &servo3;
 
-  recivedData = {{0, 0, 0}, 0};
-  switchControl = {{0, 0, 0}, 0};
+  servos[0].buttonPin = 4;
+  servos[1].buttonPin = 3;
+  servos[2].buttonPin = 2;
 
-  servo1.write(100);
+  servos[0].prv_value = false;
+  servos[1].prv_value = false;
+  servos[2].prv_value = false;
+
+
+  recivedData = {{0,0,0},0};
+  switchControl = {{0,0,0},0};
+  //processSwitchData();
+
+  
+  servo1.write(50);
 }
-
 void loop() {
-  for (int i = 0; i < 3; i++) {
-    recivedData.power[i] = digitalRead(switchPins[i]) == LOW; // Assuming LOW when button is pressed
-  }
-
-  processSwitchData();
-
-  switchControl = recivedData;
+  //버튼 누르면 recivedData.power[] 값 변경, switchControl.changed = true;
+  //recivedData.power[0] = random(0,2);
+  //recivedData.power[1] = random(0,2);
+  //recivedData.power[2] = random(0,2);
+  detectButton();
   setReceiveMode();
-
   if (radio.available()) {
     Serial.println("Data received");
     char request[4];
     radio.read(&request, sizeof(request));
-    if (strcmp(request, "get") == 0) {
+    if(strcmp(request, "get")==0)
+    {
+      delay(500);
       setSendMode();
       radio.write(&switchControl, sizeof(SWI));
-    } else if (strcmp(request, "put") == 0) {
+      switchControl.changed = false;
+    }
+    else if(strcmp(request, "put")==0)
+    {
       setReceiveMode();
       radio.read(&recivedData, sizeof(SWI));
+      processSwitchData();
     }
+  }
+}
+
+void detectButton(){
+  Serial.println(digitalRead(servos[0].buttonPin));
+  for(int i = 0;i<3;i++)
+  {
+    int readValue = digitalRead(servos[i].buttonPin);
+    if(servos[i].prv_value!=readValue&&readValue==false)
+    { 
+      switchControl.power[i] = !switchControl.power[i];
+      switchControl.changed = true;
+      servoAct(i, !switchControl.power[i]);
+    }
+    servos[i].prv_value = readValue;
+  }
+}
+void servoAct(int i,bool p){
+  if(p)
+  {
+    //i번 스위치 on
+    servos[i].servoPtr->write(180);
+    delay(300);
+    servos[i].servoPtr->write(90);
+    Serial.print(i);
+    Serial.println(":turn on");
+  }
+  else
+  {
+    servos[i].servoPtr->write(0);
+    delay(300);
+    servos[i].servoPtr->write(90);
+    Serial.print(i);
+    Serial.println(":turn off");
   }
 }
 
 void processSwitchData() {
-  for (int i = 0; i < 3; i++) {
-    if (switchControl.power[i] == recivedData.power[i]) continue;
-    else if (switchControl.power[i] < recivedData.power[i]) {
-      // i번 스위치 on
-      servos[i]->write(90);
-      delay(300);
-      // 버튼이 눌렸을 때, 서보 동작을 멈추도록 추가
-      if (!recivedData.power[i]) {
-        servos[i]->detach(); // 서보를 일시적으로 중지
-        delay(300); // 중지한 상태를 유지할 시간 (선택적)
-        servos[i]->attach(i == 0 ? 7 : (i == 1 ? 6 : 5)); // 다시 서보를 연결
-      }
-      servos[i]->write(180);
+  for(int i = 0;i<3;i++)
+  {
+    Serial.print(switchControl.power[i]);
+    Serial.println(recivedData.power[i]);
+    if(switchControl.power[i] == recivedData.power[i])continue;
+    else if(switchControl.power[i] < recivedData.power[i])
+    {
+      //i번 스위치 on
+      servoAct(i, true);
     }
-    else if (switchControl.power[i] > recivedData.power[i]) {
-      // i번 스위치 off
-      // 서보를 끄는 동작 추가 (필요에 따라 처리)
+    else if(switchControl.power[i] > recivedData.power[i])
+    {
+      //i번 스위치 off
+      servoAct(i, false);
     }
-    switchControl.power[i] = recivedData.power[i];
-    switchControl.changed = true;
   }
-}
-
+  switchControl = recivedData;
+  Serial.println("-----");
+ }
 void setSendMode(){
   radio.openWritingPipe(address);
   radio.setPALevel(RF24_PA_MIN);
   radio.stopListening();
-  Serial.println("Send mode set");
+  //Serial.println("Send mode set");
 }
 
 void setReceiveMode(){
   radio.openReadingPipe(0, address);
   radio.setPALevel(RF24_PA_MIN);
   radio.startListening();
-  Serial.println("Receive mode set");
+  //Serial.println("Receive mode set");
 }
