@@ -15,20 +15,17 @@ struct SERVO{
 
 SERVO servos[3];
 
-
-
-
 RF24 radio(10, 9);
 const byte address[6] = "00003";
 
 typedef struct {
   bool power[3];
   bool changed;
-} SWI;
+} DATA;
 
 
-SWI switchControl;
-SWI recivedData;
+DATA currentDate;
+DATA receivedData;
 
 void setup() {
   Serial.begin(9600);
@@ -51,19 +48,32 @@ void setup() {
   servos[2].prv_value = false;
 
 
-  recivedData = {{0,0,0},0};
-  switchControl = {{0,0,0},0};
+  currentDate = {{0,0,0},0};
+  receivedData = {{0,0,0},0};
   //processSwitchData();
 
-  
-  servo1.write(50);
+  servo1.write(90);
 }
 void loop() {
-  //버튼 누르면 recivedData.power[] 값 변경, switchControl.changed = true;
-  //recivedData.power[0] = random(0,2);
-  //recivedData.power[1] = random(0,2);
-  //recivedData.power[2] = random(0,2);
   detectButton();
+  detectSignal();
+  actByData();
+}
+
+void detectButton(){
+  Serial.println(digitalRead(servos[0].buttonPin));
+  for(int i = 0;i<3;i++)
+  {
+    bool readValue = digitalRead(servos[i].buttonPin);
+    if(servos[i].prv_value!=readValue&&readValue==false)
+    { 
+      currentDate.power[i] = !currentDate.power[i];
+      currentDate.changed = true;
+    }
+    servos[i].prv_value = readValue;
+  }
+}
+void detectSignal(){
   setReceiveMode();
   if (radio.available()) {
     Serial.println("Data received");
@@ -73,70 +83,38 @@ void loop() {
     {
       delay(500);
       setSendMode();
-      radio.write(&switchControl, sizeof(SWI));
-      switchControl.changed = false;
+      radio.write(&currentDate, sizeof(DATA));
+      currentDate.changed = false;
     }
     else if(strcmp(request, "put")==0)
     {
       setReceiveMode();
-      radio.read(&recivedData, sizeof(SWI));
-      processSwitchData();
+      radio.read(&receivedData, sizeof(DATA));
+      //if(receivedData.changed)currentData=receivedData;
+      currentData=receivedData;
     }
   }
 }
-
-void detectButton(){
-  Serial.println(digitalRead(servos[0].buttonPin));
-  for(int i = 0;i<3;i++)
-  {
-    int readValue = digitalRead(servos[i].buttonPin);
-    if(servos[i].prv_value!=readValue&&readValue==false)
-    { 
-      switchControl.power[i] = !switchControl.power[i];
-      switchControl.changed = true;
-      servoAct(i, !switchControl.power[i]);
-    }
-    servos[i].prv_value = readValue;
-  }
-}
-void servoAct(int i,bool p){
+void actServo(int i,bool p){
   if(p)
   {
-    //i번 스위치 on
-    servos[i].servoPtr->write(180);
-    delay(300);
-    servos[i].servoPtr->write(90);
+    servos[i].servoPtr->write(110);
     Serial.print(i);
     Serial.println(":turn on");
   }
   else
   {
-    servos[i].servoPtr->write(0);
-    delay(300);
-    servos[i].servoPtr->write(90);
+    servos[i].servoPtr->write(70);
     Serial.print(i);
     Serial.println(":turn off");
   }
 }
 
-void processSwitchData() {
+void actByData() {
   for(int i = 0;i<3;i++)
   {
-    Serial.print(switchControl.power[i]);
-    Serial.println(recivedData.power[i]);
-    if(switchControl.power[i] == recivedData.power[i])continue;
-    else if(switchControl.power[i] < recivedData.power[i])
-    {
-      //i번 스위치 on
-      servoAct(i, true);
-    }
-    else if(switchControl.power[i] > recivedData.power[i])
-    {
-      //i번 스위치 off
-      servoAct(i, false);
-    }
+    actServo(i,currentData.power[i]);
   }
-  switchControl = recivedData;
   Serial.println("-----");
  }
 void setSendMode(){

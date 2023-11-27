@@ -72,15 +72,15 @@ void loop() {
 
   // 공기청정기, 가습기, 스위치에 대해 템플릿 함수를 사용하여 업데이트합니다.
 
-  updateDeviceData(AIR_CLEANER_ADDRESS, airCleaner, "Air Cleaner");
-  updateDeviceData(HUMIDIFIER_ADDRESS, humidifier, "Humidifier");
-  updateDeviceData(SWITCH_ADDRESS, switchControl, "Switch");
+  syncData(AIR_CLEANER_ADDRESS, airCleaner, "Air Cleaner");
+  syncData(HUMIDIFIER_ADDRESS, humidifier, "Humidifier");
+  syncData(SWITCH_ADDRESS, switchControl, "Switch");
   Serial.println("--------------------");
   delay(1000); // 100ms 지연
 }
 
 template<typename T>
-void updateDeviceData(const byte address[], T &deviceData, const char* deviceName) {
+void syncData(const byte address[], T &deviceData, const char* deviceName) {
   
   // 장치에서 최신 데이터를 가져옵니다.
   get(address, &deviceData.device, sizeof(deviceData.device), deviceName);
@@ -98,7 +98,7 @@ void updateDeviceData(const byte address[], T &deviceData, const char* deviceNam
     // 클라우드의 변화를 장치에 반영합니다.
     Serial.println("change detected cloude");
     deviceData.device = deviceData.cloude;
-    put(address, &deviceData.device, sizeof(T), deviceName);
+    put(address, &deviceData.device, sizeof(deviceData.device), deviceName);
   } 
   else {// 변경 사항이 없는 경우
     Serial.println("[no changed]");
