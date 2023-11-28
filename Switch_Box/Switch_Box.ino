@@ -24,7 +24,7 @@ typedef struct {
 } DATA;
 
 
-DATA currentDate;
+DATA currentData;
 DATA receivedData;
 
 void setup() {
@@ -48,7 +48,7 @@ void setup() {
   servos[2].prv_value = false;
 
 
-  currentDate = {{0,0,0},0};
+  currentData = {{0,0,0},0};
   receivedData = {{0,0,0},0};
   //processSwitchData();
 
@@ -67,8 +67,8 @@ void detectButton(){
     bool readValue = digitalRead(servos[i].buttonPin);
     if(servos[i].prv_value!=readValue&&readValue==false)
     { 
-      currentDate.power[i] = !currentDate.power[i];
-      currentDate.changed = true;
+      currentData.power[i] = !currentData.power[i];
+      currentData.changed = true;
     }
     servos[i].prv_value = readValue;
   }
@@ -83,8 +83,8 @@ void detectSignal(){
     {
       delay(500);
       setSendMode();
-      radio.write(&currentDate, sizeof(DATA));
-      currentDate.changed = false;
+      radio.write(&currentData, sizeof(DATA));
+      currentData.changed = false;
     }
     else if(strcmp(request, "put")==0)
     {

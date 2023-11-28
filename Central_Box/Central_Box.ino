@@ -17,8 +17,8 @@
 #include "addons/RTDBHelper.h"
 
 // 통신 관련 셋팅
-#define WIFI_SSID "와이파이 아이디"
-#define WIFI_PASSWORD "와이파이 비빌번호"
+#define WIFI_SSID "GC_free_WiFi"
+#define WIFI_PASSWORD ""
 #define API_KEY "AIzaSyBy5y3roWIZD6bVH70McUOXtnEUVIMHup8"
 #define DATABASE_URL "https://smart-dormitory-protaku-789615-default-rtdb.firebaseio.com/" 
 
@@ -62,7 +62,7 @@ struct SWI{
   SwitchData cloude;
 }switchControl;
 
-RF24 radio(10, 9); // RF24 객체 생성 (CE, CSN 핀 번호 지정)
+RF24 radio(2, 0); // RF24 객체 생성 (CE, CSN 핀 번호 지정)
 
 // Firebase 객체
 FirebaseData fbdo;
@@ -283,6 +283,7 @@ void syncData(const byte address[], T &deviceData, const char* deviceName) {
     deviceData.device.changed = false;
     // 장치의 변화를 'cloude'에 반영합니다.
     Serial.println("change detected device");
+    deviceData.cloude = deviceData.device;
     // 서버에 deviceData.cloude 값을 업로드
     toFirebase(deviceData.cloude);
   } 
