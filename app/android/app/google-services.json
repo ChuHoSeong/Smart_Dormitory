@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "26485313633",
+    "firebase_url": "https://smart-dormitory-protaku-789615-default-rtdb.firebaseio.com",
+    "project_id": "smart-dormitory-protaku-789615",
+    "storage_bucket": "smart-dormitory-protaku-789615.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:26485313633:android:cefec434228be53f6b9a20",
+        "android_client_info": {
+          "package_name": "com.example.smart_dormitory"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBy5y3roWIZD6bVH70McUOXtnEUVIMHup8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
