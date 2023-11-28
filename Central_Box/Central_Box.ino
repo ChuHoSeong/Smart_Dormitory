@@ -44,7 +44,7 @@ struct SWI{
 
 SwitchData test_s = {{1,1,1},0};
 
-RF24 radio(10, 9); // RF24 객체 생성 (CE, CSN 핀 번호 지정)
+RF24 radio(2, 0); // RF24 객체 생성 (CE, CSN 핀 번호 지정)
 
 // 초기 설정 함수
 void setup() {
