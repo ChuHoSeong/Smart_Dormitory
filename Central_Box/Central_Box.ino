@@ -17,8 +17,8 @@
 #include "addons/RTDBHelper.h"
 
 // 통신 관련 셋팅
-#define WIFI_SSID "Chu"
-#define WIFI_PASSWORD "23970455"
+#define WIFI_SSID "452"
+#define WIFI_PASSWORD "00000452"
 #define API_KEY "AIzaSyBy5y3roWIZD6bVH70McUOXtnEUVIMHup8"
 #define DATABASE_URL "https://smart-dormitory-protaku-789615-default-rtdb.firebaseio.com/" 
 
@@ -114,14 +114,14 @@ void setup() {
 template<typename T>
 void init(const byte address[], T &deviceData, const char* deviceName) {
   // 장치에서 데이터를 가져옵니다.
-  get(address, &deviceData.device, sizeof(deviceData.device), deviceName);
+  get(address, &deviceData.device, deviceName);
   // 장치의 'origin'과 'cloude' 상태를 현재 장치 상태로 초기화(동기화)합니다.
   deviceData.cloude = deviceData.device;
 
   
   Serial.println("init");
-  printDeviceData(&deviceData.device, deviceName); 
-  printDeviceData(&deviceData.cloude, deviceName); 
+  printDeviceData(deviceData.device); 
+  printDeviceData(deviceData.cloude); 
   // 서버에 deviceData.cloude 값 업로드
 
   toFirebase(deviceData.cloude);
@@ -133,12 +133,12 @@ void loop() {
 
   // 공기청정기, 가습기, 스위치에 대해 템플릿 함수를 사용하여 업데이트합니다.
 
-  printDeviceData(&airCleaner.device, "Air Cleaner"); 
-  printDeviceData(&humidifier.device, "Humidifier"); 
-  printDeviceData(&switchControl.device, "Switch"); 
-  //syncData(AIR_CLEANER_ADDRESS, airCleaner, "Air Cleaner");
+  printDeviceData(airCleaner.device); 
+  printDeviceData(humidifier.device); 
+  printDeviceData(switchControl.device); 
+  syncData(AIR_CLEANER_ADDRESS, airCleaner, "Air Cleaner");
   syncData(HUMIDIFIER_ADDRESS, humidifier, "Humidifier");
-  //syncData(SWITCH_ADDRESS, switchControl, "Switch");
+  syncData(SWITCH_ADDRESS, switchControl, "Switch");
   Serial.println("--------------------");
   delay(1000); // 100ms 지연
 }
@@ -147,12 +147,12 @@ template<typename T>
 void syncData(const byte address[], T &deviceData, const char* deviceName) {
   
   // 장치에서 최신 데이터를 가져옵니다.
-  get(address, &deviceData.device, sizeof(deviceData.device), deviceName);
+  get(address, &deviceData.device, deviceName);
   fromFirebase(deviceData.cloude, deviceName);
 
   Serial.println("get3");
-  printDeviceData(&deviceData.device, deviceName); 
-  printDeviceData(&deviceData.cloude, deviceName);
+  printDeviceData(deviceData.device); 
+  printDeviceData(deviceData.cloude);
 
   if(deviceData.device.changed) {// 장치 데이터에 변화가 있는 경우
     deviceData.device.changed = false;
@@ -175,22 +175,21 @@ void syncData(const byte address[], T &deviceData, const char* deviceName) {
 }
 
 // 특정 주소의 장치로부터 데이터를 받아오는 함수
-void get(const byte address[], void* data, size_t dataSize, const char* deviceName){
+void get(const byte address[], void* data, const char* deviceName){
   setSendMode(address); // 데이터 전송 모드로 설정
   
   char request[4] = "get"; // 'get' 요청 메시지
   radio.write(&request, sizeof(request)); // 요청 메시지 전송
 
   
-  Serial.println(dataSize);
   //데이터 수신 확인
   if (!receiveDataWithTimeout(address)) {
     Serial.println(String("*") + deviceName + " system is turned off"); // 시스템 꺼짐 메시지 출력
   }
   else {
-    radio.read(data, dataSize); // 데이터 수신
+    radio.read(data, sizeof(data)); // 데이터 수신
     //switchControl.cloude = test_s;
-    printDeviceData(data, deviceName); // 데이터 출력
+    printDeviceData(data); // 데이터 출력
   } 
 }
 
@@ -206,61 +205,58 @@ void put(const byte address[], void* data, size_t dataSize, const char* deviceNa
 }
 
 // 각 장치 데이터를 업데이트하는 템플릿 함수
-
-// 장치 데이터를 출력하는 함수 -> 추후 LCD에 출력시키는 메소드로 변경하면 됨
-void printDeviceData(void* data, const char* deviceName) {
-  // 각 장치 타입에 따라 적절한 데이터 형식으로 캐스팅하여 출력
-  if (strcmp(deviceName, "Air Cleaner") == 0) {
-    AirCleanerData* acData = (AirCleanerData*)data;
-    Serial.print("* Power: "); Serial.print(acData->power);
-    Serial.print(", Quality: "); Serial.print(acData->quality);
-    Serial.print(", Changed: "); Serial.println(acData->changed);
-  } 
-  else if (strcmp(deviceName, "Humidifier") == 0) {
-    HumidifierData* humData = (HumidifierData*)data;
-    Serial.print("* Power: "); Serial.print(humData->power);
-    Serial.print(", Temp: "); Serial.print(humData->temp);
-    Serial.print(", Humidity: "); Serial.print(humData->humidity);
-    Serial.print(", Changed: "); Serial.println(humData->changed);
-  }
-  else if (strcmp(deviceName, "Switch") == 0) {
-    SwitchData* swData = (SwitchData*)data;
-    Serial.print("* Switch States: ");
-    for (int i = 0; i < 3; i++) {
-      Serial.print(swData->power[i]); Serial.print(" ");
-    }
-    Serial.print(", Changed: "); Serial.println(swData->changed);
-  }
+// 데이터 전송 모드 설정 함수
+void setSendMode(const byte address[]){
+  radio.openWritingPipe(address); // 쓰기 파이프 열기
+  radio.setPALevel(RF24_PA_MIN); // 전력 수준 설정
+  radio.stopListening(); // 수신 중단
 }
-
 // 타임아웃을 설정하여 데이터 수신 여부를 확인하는 함수
 bool receiveDataWithTimeout(const byte address[]) {
   unsigned long startTime = millis(); // 시작 시간 기록
   setReceiveMode(address); // 데이터 수신 모드 설정
   // 0.5초 동안 데이터 수신 대기
-  while (millis() - startTime < 500) { 
+  while (millis() - startTime < 400) { 
     if (radio.available()) {
       return true; // 데이터 수신 성공
     }
   }
   return false; // 타임아웃 발생
 }
-
-// 데이터 전송 모드 설정 함수
-void setSendMode(const byte address[]){
-  radio.openWritingPipe(address); // 쓰기 파이프 열기
-  radio.setPALevel(RF24_PA_MIN); // 전력 수준 설정
-  radio.stopListening(); // 수신 중단
-  //Serial.println("Send mode set"); // 로그 출력
-}
-
 // 데이터 수신 모드 설정 함수
 void setReceiveMode(const byte address[]){
   radio.openReadingPipe(0, address); // 읽기 파이프 열기
   radio.setPALevel(RF24_PA_MIN); // 전력 수준 설정
   radio.startListening(); // 수신 시작
-  //Serial.println("Receive mode set"); // 로그 출력
 }
+
+// 장치 데이터를 출력하는 함수 -> 추후 LCD에 출력시키는 메소드로 변경하면 됨
+template<typename T>
+void printDeviceData(T &data){
+  Serial.println("Unknown Device Type");
+}
+template<>
+void printDeviceData<AirCleanerData>(AirCleanerData &data) {
+  Serial.print("* Power: "); Serial.print(data.power);
+  Serial.print(", Quality: "); Serial.print(data.quality);
+  Serial.print(", Changed: "); Serial.println(data.changed);
+}
+template<>
+void printDeviceData<HumidifierData>(HumidifierData &data) {
+  Serial.print("* Power: "); Serial.print(data.power);
+  Serial.print(", Temp: "); Serial.print(data.temp);
+  Serial.print(", Humidity: "); Serial.print(data.humidity);
+  Serial.print(", Changed: "); Serial.println(data.changed);
+}
+template<>
+void printDeviceData<SwitchData>(SwitchData &data) {
+  Serial.print("* Switch States: ");
+  for (int i = 0; i < 3; i++) {
+    Serial.print(data.power[i]); Serial.print(" ");
+  }
+  Serial.print(", Changed: "); Serial.println(data.changed);
+}
+
 
 
 template<typename T>

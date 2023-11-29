@@ -23,7 +23,6 @@ typedef struct {
   bool changed;
 } DATA;
 
-
 DATA currentData;
 DATA receivedData;
 
@@ -81,7 +80,7 @@ void detectSignal(){
     radio.read(&request, sizeof(request));
     if(strcmp(request, "get")==0)
     {
-      delay(500);
+      delay(200);
       setSendMode();
       radio.write(&currentData, sizeof(DATA));
       currentData.changed = false;
