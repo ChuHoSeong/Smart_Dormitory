@@ -24,40 +24,40 @@
 
 // 장치 주소 상수 정의
 const byte AIR_CLEANER_ADDRESS[6] = "00001"; // 공기청정기 주소
-const byte HUMIDIFIER_ADDRESS[6] = "00020"; // 가습기 주소
+const byte HUMIDIFIER_ADDRESS[6] = "00002"; // 가습기 주소
 const byte SWITCH_ADDRESS[6] = "00003"; // 스위치 주소
 
 // 데이터 구조체 정의
-typedef struct {
+typedef struct __attribute__((packed)){
   int16_t quality;
   bool power;
-  bool changed;
 } AirCleanerData; // 공기청정기 데이터 구조체
 
-typedef struct {
+typedef struct __attribute__((packed)){
   int16_t temp;
   int16_t humidity;
   bool power;
-  bool changed;
 } HumidifierData; // 가습기 데이터 구조체
 
 typedef struct {
   bool power[3];
-  bool changed;
 } SwitchData; // 스위치 데이터 구조체
 
 // 각 장치에 대한 데이터를 포함하는 구조체 정의
 struct AIR{
+  AirCleanerData center;
   AirCleanerData device;
   AirCleanerData cloude;
 }airCleaner;
 
 struct HUM{
+  HumidifierData center;
   HumidifierData device;
   HumidifierData cloude;
 }humidifier;
 
 struct SWI{
+  SwitchData center;
   SwitchData device;
   SwitchData cloude;
 }switchControl;
@@ -98,8 +98,8 @@ void setup() {
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true);
 
-  Serial.println(sizeof(humidifier.device));
   Serial.println(sizeof(airCleaner.device));
+  Serial.println(sizeof(humidifier.device));
   Serial.println(sizeof(switchControl.device));
 
   // 각 장치에 대한 초기화 수행
@@ -114,12 +114,14 @@ void setup() {
 template<typename T>
 void init(const byte address[], T &deviceData, const char* deviceName) {
   // 장치에서 데이터를 가져옵니다.
-  get(address, &deviceData.device, deviceName);
+  get(address, &deviceData.device, sizeof(deviceData.device), deviceName);
   // 장치의 'origin'과 'cloude' 상태를 현재 장치 상태로 초기화(동기화)합니다.
   deviceData.cloude = deviceData.device;
+  deviceData.center = deviceData.device;
 
   
   Serial.println("init");
+  printDeviceData(deviceData.center); 
   printDeviceData(deviceData.device); 
   printDeviceData(deviceData.cloude); 
   // 서버에 deviceData.cloude 값 업로드
@@ -132,10 +134,6 @@ void loop() {
   //Serial.println(analogRead(A0)); // 아날로그 핀에서 읽은 값을 출력
 
   // 공기청정기, 가습기, 스위치에 대해 템플릿 함수를 사용하여 업데이트합니다.
-
-  printDeviceData(airCleaner.device); 
-  printDeviceData(humidifier.device); 
-  printDeviceData(switchControl.device); 
   syncData(AIR_CLEANER_ADDRESS, airCleaner, "Air Cleaner");
   syncData(HUMIDIFIER_ADDRESS, humidifier, "Humidifier");
   syncData(SWITCH_ADDRESS, switchControl, "Switch");
@@ -143,39 +141,50 @@ void loop() {
   delay(1000); // 100ms 지연
 }
 
+
+// 각 장치 데이터를 업데이트하는 템플릿 함수
 template<typename T>
 void syncData(const byte address[], T &deviceData, const char* deviceName) {
   
   // 장치에서 최신 데이터를 가져옵니다.
-  get(address, &deviceData.device, deviceName);
+  get(address, &deviceData.device, sizeof(deviceData.device), deviceName);
   fromFirebase(deviceData.cloude, deviceName);
 
-  Serial.println("get3");
+  Serial.println("get");
+  printDeviceData(deviceData.center); 
   printDeviceData(deviceData.device); 
   printDeviceData(deviceData.cloude);
 
-  if(deviceData.device.changed) {// 장치 데이터에 변화가 있는 경우
-    deviceData.device.changed = false;
-    // 장치의 변화를 'cloude'에 반영합니다.
-    Serial.println("change detected device");
+  if(checkChangePower(deviceData.center, deviceData.cloude)) {//서버에서 변경 사항이 없는 경우
+    Serial.println("change detected cloude");
+    deviceData.center = deviceData.cloude;
+    deviceData.device = deviceData.cloude;
+    put(address, &deviceData.device, sizeof(deviceData.device), deviceName);
+  }
+  else
+  {
+    // 상시 동기화
+    Serial.println("non");
+    deviceData.center = deviceData.device;
     deviceData.cloude = deviceData.device;
     // 서버에 deviceData.cloude 값을 업로드
     toFirebase(deviceData.cloude);
-  } 
-  else if (deviceData.cloude.changed) { // 클라우드 데이터에 변화가 있는 경우
-    deviceData.cloude.changed = false;
-    // 클라우드의 변화를 장치에 반영합니다.
-    Serial.println("change detected cloude");
-    deviceData.device = deviceData.cloude;
-    put(address, &deviceData.device, sizeof(deviceData.device), deviceName);
-  } 
-  else {// 변경 사항이 없는 경우
-    Serial.println("[no changed]");
   }
 }
 
+template<typename T> bool checkChangePower(T &data1, T &data2){
+  return (data1.power != data1.power);
+}
+template<> bool checkChangePower<SwitchData>(SwitchData &data1, SwitchData &data2){
+  for(int i = 0;i<3;i++)
+  {
+    if(data1.power[i]!=data2.power[i])return true;
+  }
+  return false;
+}
+
 // 특정 주소의 장치로부터 데이터를 받아오는 함수
-void get(const byte address[], void* data, const char* deviceName){
+void get(const byte address[], void* data, size_t dataSize, const char* deviceName){
   setSendMode(address); // 데이터 전송 모드로 설정
   
   char request[4] = "get"; // 'get' 요청 메시지
@@ -187,9 +196,11 @@ void get(const byte address[], void* data, const char* deviceName){
     Serial.println(String("*") + deviceName + " system is turned off"); // 시스템 꺼짐 메시지 출력
   }
   else {
-    radio.read(data, sizeof(data)); // 데이터 수신
+    Serial.print("realtime_size = ");
+    Serial.println(dataSize);
+    radio.read(data, dataSize); // 데이터 수신
     //switchControl.cloude = test_s;
-    printDeviceData(data); // 데이터 출력
+    //printDeviceData(data); // 데이터 출력
   } 
 }
 
@@ -204,24 +215,23 @@ void put(const byte address[], void* data, size_t dataSize, const char* deviceNa
   //Serial.println(String(deviceName) + " : data : write"); // 로그 출력
 }
 
-// 각 장치 데이터를 업데이트하는 템플릿 함수
-// 데이터 전송 모드 설정 함수
-void setSendMode(const byte address[]){
-  radio.openWritingPipe(address); // 쓰기 파이프 열기
-  radio.setPALevel(RF24_PA_MIN); // 전력 수준 설정
-  radio.stopListening(); // 수신 중단
-}
 // 타임아웃을 설정하여 데이터 수신 여부를 확인하는 함수
 bool receiveDataWithTimeout(const byte address[]) {
   unsigned long startTime = millis(); // 시작 시간 기록
   setReceiveMode(address); // 데이터 수신 모드 설정
   // 0.5초 동안 데이터 수신 대기
-  while (millis() - startTime < 400) { 
+  while (millis() - startTime < 200) { 
     if (radio.available()) {
       return true; // 데이터 수신 성공
     }
   }
   return false; // 타임아웃 발생
+}
+// 데이터 전송 모드 설정 함수
+void setSendMode(const byte address[]){
+  radio.openWritingPipe(address); // 쓰기 파이프 열기
+  radio.setPALevel(RF24_PA_MIN); // 전력 수준 설정
+  radio.stopListening(); // 수신 중단
 }
 // 데이터 수신 모드 설정 함수
 void setReceiveMode(const byte address[]){
@@ -233,20 +243,20 @@ void setReceiveMode(const byte address[]){
 // 장치 데이터를 출력하는 함수 -> 추후 LCD에 출력시키는 메소드로 변경하면 됨
 template<typename T>
 void printDeviceData(T &data){
-  Serial.println("Unknown Device Type");
+  Serial.println("print : Unknown Device Type");
 }
 template<>
 void printDeviceData<AirCleanerData>(AirCleanerData &data) {
   Serial.print("* Power: "); Serial.print(data.power);
-  Serial.print(", Quality: "); Serial.print(data.quality);
-  Serial.print(", Changed: "); Serial.println(data.changed);
+  Serial.print(", Quality: "); Serial.println(data.quality);
+  //Serial.print(", Changed: "); Serial.println(data.changed);
 }
 template<>
 void printDeviceData<HumidifierData>(HumidifierData &data) {
   Serial.print("* Power: "); Serial.print(data.power);
   Serial.print(", Temp: "); Serial.print(data.temp);
-  Serial.print(", Humidity: "); Serial.print(data.humidity);
-  Serial.print(", Changed: "); Serial.println(data.changed);
+  Serial.print(", Humidity: "); Serial.println(data.humidity);
+  //Serial.print(", Changed: "); Serial.println(data.changed);
 }
 template<>
 void printDeviceData<SwitchData>(SwitchData &data) {
@@ -254,14 +264,13 @@ void printDeviceData<SwitchData>(SwitchData &data) {
   for (int i = 0; i < 3; i++) {
     Serial.print(data.power[i]); Serial.print(" ");
   }
-  Serial.print(", Changed: "); Serial.println(data.changed);
+  Serial.println();
+  //Serial.print(", Changed: "); Serial.println(data.changed);
 }
-
-
 
 template<typename T>
 bool fromFirebase(T &deviceData, const char *deviceName) {
-  Serial.println("Unknown Device Type");
+  Serial.println("firebase : Unknown Device Type");
   return false;
 }
 template<>

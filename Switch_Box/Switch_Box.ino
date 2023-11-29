@@ -20,7 +20,6 @@ const byte address[6] = "00003";
 
 typedef struct {
   bool power[3];
-  bool changed;
 } DATA;
 
 DATA currentData;
@@ -47,8 +46,8 @@ void setup() {
   servos[2].prv_value = false;
 
 
-  currentData = {{0,0,0},0};
-  receivedData = {{0,0,0},0};
+  currentData = {{0,0,0}};
+  receivedData = {{0,0,0}};
   //processSwitchData();
 
   servo1.write(90);
@@ -60,14 +59,13 @@ void loop() {
 }
 
 void detectButton(){
-  Serial.println(digitalRead(servos[0].buttonPin));
+  //Serial.println(digitalRead(servos[0].buttonPin));
   for(int i = 0;i<3;i++)
   {
     bool readValue = digitalRead(servos[i].buttonPin);
     if(servos[i].prv_value!=readValue&&readValue==false)
     { 
       currentData.power[i] = !currentData.power[i];
-      currentData.changed = true;
     }
     servos[i].prv_value = readValue;
   }
@@ -80,17 +78,15 @@ void detectSignal(){
     radio.read(&request, sizeof(request));
     if(strcmp(request, "get")==0)
     {
-      delay(200);
+      delay(100);
       setSendMode();
-      radio.write(&currentData, sizeof(DATA));
-      currentData.changed = false;
+      radio.write(&currentData, sizeof(currentData));
     }
     else if(strcmp(request, "put")==0)
     {
       setReceiveMode();
-      radio.read(&receivedData, sizeof(DATA));
-      //if(receivedData.changed)currentData=receivedData;
-      currentData=receivedData;
+      while(radio.available());
+      radio.read(&currentData, sizeof(currentData));
     }
   }
 }
@@ -99,13 +95,13 @@ void actServo(int i,bool p){
   {
     servos[i].servoPtr->write(110);
     Serial.print(i);
-    Serial.println(":turn on");
+    Serial.print(":O ");
   }
   else
   {
     servos[i].servoPtr->write(70);
     Serial.print(i);
-    Serial.println(":turn off");
+    Serial.print(":X ");
   }
 }
 
@@ -114,7 +110,7 @@ void actByData() {
   {
     actServo(i,currentData.power[i]);
   }
-  Serial.println("-----");
+  Serial.println("\n-----");
  }
 void setSendMode(){
   radio.openWritingPipe(address);

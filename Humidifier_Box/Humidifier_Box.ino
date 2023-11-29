@@ -5,19 +5,17 @@
 #include <DHT.h>
 
 RF24 radio(10, 9);
-const byte address[6] = "00020";
+const byte address[6] = "00002";
 
 typedef struct {
   int temp;
   int humidity;
   bool power;
-  bool changed;
 } DATA;
 
 
 
-DATA currentData = {0, 0, false, false};
-DATA receivedData= {0, 0, false, false};;
+DATA currentData = {0, 0, false};
 
 int button = 4;//임의로 7로 정함
 int humidifier = 7;//임의로 6로 정함
@@ -35,6 +33,8 @@ void loop() {
   detectButton();
   detectSignal();
   actByData();
+  Serial.println(currentData.power);
+  Serial.println(sizeof(DATA));
 }
 void detectSensor(){
   float h = dht.readHumidity();
@@ -52,7 +52,6 @@ void detectButton(){
   if(prv_value!=readValue&&readValue==false)
   {
     currentData.power = !currentData.power;
-    currentData.changed = true;
   }
   prv_value = readValue;
 }
@@ -64,17 +63,15 @@ void detectSignal(){
     radio.read(&request, sizeof(request));
     if(strcmp(request, "get")==0)
     {
-      delay(200);
+      delay(100);
       setSendMode();
-      radio.write(&currentData, sizeof(DATA));
-      currentData.changed = false;
+      radio.write(&currentData, sizeof(currentData));
     }
     else if(strcmp(request, "put")==0)
     {
       setReceiveMode();
-      radio.read(&receivedData, sizeof(DATA));
-      //if(receivedData.changed)currentData=receivedData;
-      currentData=receivedData;
+      while(radio.available());
+      radio.read(&currentData, sizeof(currentData));
     }
   }
 }

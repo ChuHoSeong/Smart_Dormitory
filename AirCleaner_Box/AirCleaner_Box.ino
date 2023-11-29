@@ -6,13 +6,11 @@ RF24 radio(10, 9);
 const byte address[6] = "00003";
 
 typedef struct {
-  bool power;
   int quality;
-  bool changed;
+  bool power;
 } DATA;
 
 DATA currentDate;
-DATA receivedData;
 
 int button = 7;//임의로 7로 정함
 int fan = 6;//임의로 6로 정함
@@ -45,17 +43,15 @@ void detectSignal(){
     radio.read(&request, sizeof(request));
     if(strcmp(request, "get")==0)
     {
-      delay(500);
+      delay(100);
       setSendMode();
-      radio.write(&currentDate, sizeof(DATA));
+      radio.write(&currentDate, sizeof(currentDate));
       currentDate.changed = false;
     }
     else if(strcmp(request, "put")==0)
     {
       setReceiveMode();
-      radio.read(&receivedData, sizeof(DATA));
-      //if(receivedData.changed)currentData=receivedData;
-      currentData=receivedData;
+      radio.read(&currentDate, sizeof(currentDate));
     }
   }
 }
