@@ -23,6 +23,7 @@ DHT dht(8, DHT11);
 
 void setup() {
   pinMode(humidifier, OUTPUT);
+  digitalWrite(humidifier, HIGH);
 
   Serial.begin(9600);
   radio.begin();
@@ -84,22 +85,20 @@ void actPower(bool p){
     if(p)
     {
       Serial.println("on!");
-      digitalWrite(humidifier, HIGH);
-      delay(40);
       digitalWrite(humidifier, LOW);
-      delay(50);
+      delay(5);
+      digitalWrite(humidifier, HIGH);
     }
     else
     {
       Serial.println("off!");
-      digitalWrite(humidifier, HIGH);
-      delay(40);
       digitalWrite(humidifier, LOW);
-      delay(50);
+      delay(5);
       digitalWrite(humidifier, HIGH);
-      delay(40);
+      delay(5);
       digitalWrite(humidifier, LOW);
-      delay(50);
+      delay(5);
+      digitalWrite(humidifier, HIGH);
     }
   }
   prv_pow = p;
