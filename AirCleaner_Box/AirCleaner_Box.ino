@@ -35,9 +35,16 @@ void setup() {
   pinMode(g, OUTPUT);
   pinMode(b, OUTPUT);
   pinMode(sensorLed, OUTPUT);
+  
   Serial.begin(9600);
+
   radio.begin();
+  radio.setPALevel(RF24_PA_MIN);
+  radio.openWritingPipe(address);
+  radio.openReadingPipe(0, address);
+  radio.startListening();
 }
+
 unsigned long currentMillis;
 void loop() {
   currentMillis = millis();
@@ -49,6 +56,7 @@ void loop() {
   //Serial.println(currentData.power);
   //Serial.println(currentData.quality);
 }
+
 int sensorValue = 0;
 int sensingCount = 0;
 void detectSensor(){
@@ -84,21 +92,21 @@ void detectButton(){
   prv_value = readValue;
 }
 void detectSignal(){
-  setReceiveMode();
   if (radio.available()) {
     //Serial.println("Data received");
     char request[4];
     radio.read(&request, sizeof(request));
     if(strcmp(request, "get")==0)
     {
+      radio.stopListening();
       delay(100);
       setSendMode();
       radio.write(&currentData, sizeof(currentData));
+      radio.startListening();
     }
     else if(strcmp(request, "put")==0)
     {
-      setReceiveMode();
-      while(radio.available());
+      delay(200);
       radio.read(&currentData, sizeof(currentData));
     }
   }
@@ -131,7 +139,6 @@ void setSendMode(){
 }
 
 void setReceiveMode(){
-  radio.openReadingPipe(0, address);
   radio.setPALevel(RF24_PA_MIN);
   radio.startListening();
   //Serial.println("Receive mode set");

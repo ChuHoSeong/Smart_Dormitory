@@ -13,8 +13,6 @@ typedef struct {
   bool power;
 } DATA;
 
-
-
 DATA currentData = {0, 0, false};
 
 int button = 4;//임의로 7로 정함
@@ -26,7 +24,13 @@ void setup() {
   digitalWrite(humidifier, HIGH);
 
   Serial.begin(9600);
+
   radio.begin();
+  radio.setPALevel(RF24_PA_MIN);
+  radio.openWritingPipe(address);
+  radio.openReadingPipe(0, address);
+  radio.startListening();
+
   dht.begin();
 }
 void loop() {
@@ -57,21 +61,20 @@ void detectButton(){
   prv_value = readValue;
 }
 void detectSignal(){
-  setReceiveMode();
   if (radio.available()) {
     Serial.println("Data received");
     char request[4];
     radio.read(&request, sizeof(request));
     if(strcmp(request, "get")==0)
     {
+      radio.stopListening();
       delay(100);
-      setSendMode();
       radio.write(&currentData, sizeof(currentData));
+      radio.startListening();
     }
     else if(strcmp(request, "put")==0)
     {
-      setReceiveMode();
-      while(radio.available());
+      delay(200);
       radio.read(&currentData, sizeof(currentData));
     }
   }
@@ -103,21 +106,7 @@ void actPower(bool p){
   }
   prv_pow = p;
 }
-
 void actByData() {
   actPower(currentData.power);
   Serial.println("-----");
-}
-void setSendMode(){
-  radio.openWritingPipe(address);
-  radio.setPALevel(RF24_PA_MIN);
-  radio.stopListening();
-  //Serial.println("Send mode set");
-}
-
-void setReceiveMode(){
-  radio.openReadingPipe(0, address);
-  radio.setPALevel(RF24_PA_MIN);
-  radio.startListening();
-  //Serial.println("Receive mode set");
 }

@@ -74,6 +74,8 @@ bool signupOK = false;
 void setup() {
   Serial.begin(9600); // 시리얼 통신 시작
   radio.begin(); // 라디오 통신 시작
+  radio.setPALevel(RF24_PA_MIN);
+  
 
   // 와이파이 통신 시
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -113,6 +115,8 @@ void setup() {
 // 장치 데이터를 초기화하는 템플릿 함수
 template<typename T>
 void init(const byte address[], T &deviceData, const char* deviceName) {
+  radio.openWritingPipe(address); // 쓰기 파이프 열기
+  radio.openReadingPipe(0, address); // 읽기 파이프 열기
   // 장치에서 데이터를 가져옵니다.
   get(address, &deviceData.device, sizeof(deviceData.device), deviceName);
   // 장치의 'origin'과 'cloude' 상태를 현재 장치 상태로 초기화(동기화)합니다.
@@ -138,14 +142,15 @@ void loop() {
   syncData(HUMIDIFIER_ADDRESS, humidifier, "Humidifier");
   syncData(SWITCH_ADDRESS, switchControl, "Switch");
   Serial.println("--------------------");
-  delay(1000); // 100ms 지연
+  delay(200); // 100ms 지연
 }
 
 
 // 각 장치 데이터를 업데이트하는 템플릿 함수
 template<typename T>
 void syncData(const byte address[], T &deviceData, const char* deviceName) {
-  
+  radio.openWritingPipe(address); // 쓰기 파이프 열기
+  radio.openReadingPipe(0, address); // 읽기 파이프 열기
   // 장치에서 최신 데이터를 가져옵니다.
   get(address, &deviceData.device, sizeof(deviceData.device), deviceName);
   fromFirebase(deviceData.cloude, deviceName);
@@ -173,7 +178,7 @@ void syncData(const byte address[], T &deviceData, const char* deviceName) {
 }
 
 template<typename T> bool checkChangePower(T &data1, T &data2){
-  return (data1.power != data1.power);
+  return (data1.power != data2.power);
 }
 template<> bool checkChangePower<SwitchData>(SwitchData &data1, SwitchData &data2){
   for(int i = 0;i<3;i++)
@@ -185,59 +190,33 @@ template<> bool checkChangePower<SwitchData>(SwitchData &data1, SwitchData &data
 
 // 특정 주소의 장치로부터 데이터를 받아오는 함수
 void get(const byte address[], void* data, size_t dataSize, const char* deviceName){
-  setSendMode(address); // 데이터 전송 모드로 설정
+  
+  radio.stopListening();
   
   char request[4] = "get"; // 'get' 요청 메시지
   radio.write(&request, sizeof(request)); // 요청 메시지 전송
-
-  
-  //데이터 수신 확인
-  if (!receiveDataWithTimeout(address)) {
-    Serial.println(String("*") + deviceName + " system is turned off"); // 시스템 꺼짐 메시지 출력
-  }
-  else {
+  radio.startListening();
+  delay(200);
+  if(radio.available()){
+    radio.read(data, dataSize); // 데이터 수신
     Serial.print("realtime_size = ");
     Serial.println(dataSize);
-    radio.read(data, dataSize); // 데이터 수신
-    //switchControl.cloude = test_s;
-    //printDeviceData(data); // 데이터 출력
+  }
+  else 
+  {
+    Serial.println(String("*") + deviceName + " system is turned off"); // 시스템 꺼짐 메시지 출력
   } 
 }
 
 // 특정 주소의 장치에 데이터를 전송하는 함수
 void put(const byte address[], void* data, size_t dataSize, const char* deviceName){
-  setSendMode(address); // 데이터 전송 모드 설정
+  radio.stopListening();// 데이터 전송 모드 설정
   char request[4] = "put"; // 'put' 요청 메시지
   radio.write(&request, sizeof(request)); // 요청 메시지 전송
   //Serial.println(String(deviceName) + " : put : write"); // 로그 출력
   delay(100); // 안전을 위한 지연
   radio.write(data, dataSize); // 데이터 전송
   //Serial.println(String(deviceName) + " : data : write"); // 로그 출력
-}
-
-// 타임아웃을 설정하여 데이터 수신 여부를 확인하는 함수
-bool receiveDataWithTimeout(const byte address[]) {
-  unsigned long startTime = millis(); // 시작 시간 기록
-  setReceiveMode(address); // 데이터 수신 모드 설정
-  // 0.5초 동안 데이터 수신 대기
-  while (millis() - startTime < 200) { 
-    if (radio.available()) {
-      return true; // 데이터 수신 성공
-    }
-  }
-  return false; // 타임아웃 발생
-}
-// 데이터 전송 모드 설정 함수
-void setSendMode(const byte address[]){
-  radio.openWritingPipe(address); // 쓰기 파이프 열기
-  radio.setPALevel(RF24_PA_MIN); // 전력 수준 설정
-  radio.stopListening(); // 수신 중단
-}
-// 데이터 수신 모드 설정 함수
-void setReceiveMode(const byte address[]){
-  radio.openReadingPipe(0, address); // 읽기 파이프 열기
-  radio.setPALevel(RF24_PA_MIN); // 전력 수준 설정
-  radio.startListening(); // 수신 시작
 }
 
 // 장치 데이터를 출력하는 함수 -> 추후 LCD에 출력시키는 메소드로 변경하면 됨
