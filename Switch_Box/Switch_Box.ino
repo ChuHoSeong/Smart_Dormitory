@@ -10,10 +10,15 @@ Servo servo3;
 struct SERVO{
   Servo* servoPtr;
   int buttonPin;
+  int ledPin;
   bool prv_value;
 };
 
-SERVO servos[3];
+SERVO servos[3] = {
+  {&servo1, 4, A0, false},
+  {&servo2, 3, A1, false},
+  {&servo3, 2, A2, false}
+};
 
 RF24 radio(10, 9);
 const byte address[6] = "00003";
@@ -36,18 +41,6 @@ void setup() {
   servo1.attach(7);
   servo2.attach(6);
   servo3.attach(5);
-
-  servos[0].servoPtr = &servo1;
-  servos[1].servoPtr = &servo2;
-  servos[2].servoPtr = &servo3;
-
-  servos[0].buttonPin = 4;
-  servos[1].buttonPin = 3;
-  servos[2].buttonPin = 2;
-
-  servos[0].prv_value = false;
-  servos[1].prv_value = false;
-  servos[2].prv_value = false;
 
   currentData = {{0,0,0}};
   receivedData = {{0,0,0}};
@@ -92,6 +85,15 @@ void detectSignal(){
     }
   }
 }
+
+void actByData() {
+  for(int i = 0;i<3;i++)
+  {
+    actServo(i,currentData.power[i]);
+  }
+  Serial.println("\n-----");
+ }
+
 void actServo(int i,bool p){
   if(p)
   {
@@ -105,13 +107,5 @@ void actServo(int i,bool p){
     Serial.print(i);
     Serial.print(":X ");
   }
+  analogWrite(servos[i].ledPin, 150*(!p));
 }
-
-void actByData() {
-  for(int i = 0;i<3;i++)
-  {
-    actServo(i,currentData.power[i]);
-  }
-  Serial.println("\n-----");
- }
-
