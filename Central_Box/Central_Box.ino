@@ -1,8 +1,3 @@
-// nRF24 모듈 관련 라이브러
-#include <SPI.h>
-#include <nRF24L01.h>
-#include <RF24.h>
-
 // 보드 관련 라이브러리
 #include <Arduino.h>
 #if defined(ESP32)
@@ -21,11 +16,22 @@
 #define WIFI_PASSWORD "00000452"
 #define API_KEY "AIzaSyBy5y3roWIZD6bVH70McUOXtnEUVIMHup8"
 #define DATABASE_URL "https://smart-dormitory-protaku-789615-default-rtdb.firebaseio.com/" 
+// nRF24 모듈 관련 라이브러
+#include <SPI.h>
+#include <nRF24L01.h>
+#include <RF24.h>
+
+//LCD 라이브러
+#include <Wire.h> 
+#include <LiquidCrystal_I2C.h>
+
 
 // 장치 주소 상수 정의
 const byte AIR_CLEANER_ADDRESS[6] = "00001"; // 공기청정기 주소
 const byte HUMIDIFIER_ADDRESS[6] = "00002"; // 가습기 주소
 const byte SWITCH_ADDRESS[6] = "00003"; // 스위치 주소
+
+RF24 radio(2, 0); // RF24 객체 생성 (CE, CSN 핀 번호 지정)
 
 // 데이터 구조체 정의
 typedef struct __attribute__((packed)){
@@ -62,7 +68,6 @@ struct SWI{
   SwitchData cloude;
 }switchControl;
 
-RF24 radio(2, 0); // RF24 객체 생성 (CE, CSN 핀 번호 지정)
 
 // Firebase 객체
 FirebaseData fbdo;
@@ -70,12 +75,11 @@ FirebaseAuth auth;
 FirebaseConfig config;
 bool signupOK = false;
 
+LiquidCrystal_I2C lcd(0x27, 16, 2); 
+
 // 초기 설정 함수
 void setup() {
   Serial.begin(9600); // 시리얼 통신 시작
-  radio.begin(); // 라디오 통신 시작
-  radio.setPALevel(RF24_PA_MIN);
-  
 
   // 와이파이 통신 시
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -99,10 +103,26 @@ void setup() {
   config.token_status_callback = tokenStatusCallback; //see addons/TokenHelper.h
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true);
+  
+  radio.begin(); // 라디오 통신 시작
+  radio.setPALevel(RF24_PA_MIN);
 
-  Serial.println(sizeof(airCleaner.device));
-  Serial.println(sizeof(humidifier.device));
-  Serial.println(sizeof(switchControl.device));
+  // I2C 통신 시작
+  Wire.begin(D2, D1); // SDA, SCL
+  // LCD 초기화
+  lcd.init();
+  // 백라이트 켜기
+  lcd.backlight();
+  // 첫 번째 줄에 텍스트 출력
+  lcd.setCursor(0, 0);
+  lcd.print("init completed");
+  // 두 번째 줄에 텍스트 출력
+  lcd.setCursor(0, 1);
+  lcd.print("LCD 16x2 + I2C");
+
+  //Serial.println(sizeof(airCleaner.device));
+  //Serial.println(sizeof(humidifier.device));
+  //Serial.println(sizeof(switchControl.device));
 
   // 각 장치에 대한 초기화 수행
   init(AIR_CLEANER_ADDRESS, airCleaner, "Air Cleaner");
@@ -141,6 +161,7 @@ void loop() {
   syncData(AIR_CLEANER_ADDRESS, airCleaner, "Air Cleaner");
   syncData(HUMIDIFIER_ADDRESS, humidifier, "Humidifier");
   syncData(SWITCH_ADDRESS, switchControl, "Switch");
+  printLcd();
   Serial.println("--------------------");
   delay(200); // 100ms 지연
 }
@@ -245,6 +266,25 @@ void printDeviceData<SwitchData>(SwitchData &data) {
   }
   Serial.println();
   //Serial.print(", Changed: "); Serial.println(data.changed);
+}
+
+void printLcd(){
+  lcd.setCursor(0, 0);
+  lcd.print(humidifier.center.temp);
+  lcd.write(byte(0xDF)); // '°' 기호 출력
+  lcd.print("C ");
+  lcd.print(humidifier.center.humidity);
+  lcd.print("% ");
+  lcd.print(airCleaner.center.quality);
+  lcd.print("ug/m3");
+  
+  lcd.setCursor(0, 1);
+  lcd.print("Sw1:");
+  lcd.print(switchControl.center.power[0] ? "On" : "Off");
+  lcd.print(" Sw2:");
+  lcd.print(switchControl.center.power[1] ? "On" : "Off");
+  lcd.print(" Sw3:");
+  lcd.print(switchControl.center.power[2] ? "On" : "Off");
 }
 
 template<typename T>
