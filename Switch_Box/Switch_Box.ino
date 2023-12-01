@@ -20,9 +20,7 @@ const byte address[6] = "00003";
 
 typedef struct {
   bool power[3];
-  bool changed;
 } DATA;
-
 
 DATA currentData;
 DATA receivedData;
@@ -30,6 +28,10 @@ DATA receivedData;
 void setup() {
   Serial.begin(9600);
   radio.begin();
+  radio.setPALevel(RF24_PA_MIN);
+  radio.openWritingPipe(address);
+  radio.openReadingPipe(0, address);
+  radio.startListening();
 
   servo1.attach(7);
   servo2.attach(6);
@@ -47,9 +49,8 @@ void setup() {
   servos[1].prv_value = false;
   servos[2].prv_value = false;
 
-
-  currentData = {{0,0,0},0};
-  receivedData = {{0,0,0},0};
+  currentData = {{0,0,0}};
+  receivedData = {{0,0,0}};
   //processSwitchData();
 
   servo1.write(90);
@@ -61,37 +62,33 @@ void loop() {
 }
 
 void detectButton(){
-  Serial.println(digitalRead(servos[0].buttonPin));
+  //Serial.println(digitalRead(servos[0].buttonPin));
   for(int i = 0;i<3;i++)
   {
     bool readValue = digitalRead(servos[i].buttonPin);
     if(servos[i].prv_value!=readValue&&readValue==false)
     { 
       currentData.power[i] = !currentData.power[i];
-      currentData.changed = true;
     }
     servos[i].prv_value = readValue;
   }
 }
 void detectSignal(){
-  setReceiveMode();
   if (radio.available()) {
     Serial.println("Data received");
     char request[4];
     radio.read(&request, sizeof(request));
     if(strcmp(request, "get")==0)
     {
-      delay(500);
-      setSendMode();
-      radio.write(&currentData, sizeof(DATA));
-      currentData.changed = false;
+      radio.stopListening();
+      delay(100);
+      radio.write(&currentData, sizeof(currentData));
+      radio.startListening();
     }
     else if(strcmp(request, "put")==0)
     {
-      setReceiveMode();
-      radio.read(&receivedData, sizeof(DATA));
-      //if(receivedData.changed)currentData=receivedData;
-      currentData=receivedData;
+      delay(200);
+      if(radio.available())radio.read(&currentData, sizeof(currentData));
     }
   }
 }
@@ -100,13 +97,13 @@ void actServo(int i,bool p){
   {
     servos[i].servoPtr->write(110);
     Serial.print(i);
-    Serial.println(":turn on");
+    Serial.print(":O ");
   }
   else
   {
     servos[i].servoPtr->write(70);
     Serial.print(i);
-    Serial.println(":turn off");
+    Serial.print(":X ");
   }
 }
 
@@ -115,18 +112,6 @@ void actByData() {
   {
     actServo(i,currentData.power[i]);
   }
-  Serial.println("-----");
+  Serial.println("\n-----");
  }
-void setSendMode(){
-  radio.openWritingPipe(address);
-  radio.setPALevel(RF24_PA_MIN);
-  radio.stopListening();
-  //Serial.println("Send mode set");
-}
 
-void setReceiveMode(){
-  radio.openReadingPipe(0, address);
-  radio.setPALevel(RF24_PA_MIN);
-  radio.startListening();
-  //Serial.println("Receive mode set");
-}
