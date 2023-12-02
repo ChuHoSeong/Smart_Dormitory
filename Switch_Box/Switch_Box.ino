@@ -33,7 +33,7 @@ DATA receivedData;
 void setup() {
   Serial.begin(9600);
   radio.begin();
-  radio.setPALevel(RF24_PA_MIN);
+  radio.setPALevel(RF24_PA_HIGH);
   radio.openWritingPipe(address);
   radio.openReadingPipe(0, address);
   radio.startListening();
@@ -94,18 +94,49 @@ void actByData() {
   Serial.println("\n-----");
  }
 
+bool prv_heater_power = false;
 void actServo(int i,bool p){
-  if(p)
+  if(i==0)
   {
-    servos[i].servoPtr->write(110);
-    Serial.print(i);
-    Serial.print(":O ");
+    if(p)
+    {
+      servos[i].servoPtr->write(120);
+      Serial.print(i);
+      Serial.print(":O ");
+    }
+    else
+    {
+      servos[i].servoPtr->write(90);
+      Serial.print(i);
+      Serial.print(":X ");
+    }
   }
-  else
+  else if(i==1)
   {
-    servos[i].servoPtr->write(70);
-    Serial.print(i);
-    Serial.print(":X ");
+    if(p)
+    {
+      servos[i].servoPtr->write(65);
+      Serial.print(i);
+      Serial.print(":O ");
+    }
+    else
+    {
+      servos[i].servoPtr->write(105);
+      Serial.print(i);
+      Serial.print(":X ");
+    }
   }
+  else if(i==2)
+  {
+    if(prv_heater_power != p)
+    {
+      servos[i].servoPtr->write(50);
+      delay(200);
+      servos[i].servoPtr->write(80);
+      Serial.print("");
+    }
+    prv_heater_power = p;
+  }
+  
   analogWrite(servos[i].ledPin, 150*(!p));
 }

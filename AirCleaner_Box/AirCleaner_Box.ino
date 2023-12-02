@@ -39,7 +39,7 @@ void setup() {
   Serial.begin(9600);
 
   radio.begin();
-  radio.setPALevel(RF24_PA_MIN);
+  radio.setPALevel(RF24_PA_HIGH);
   radio.openWritingPipe(address);
   radio.openReadingPipe(0, address);
   radio.startListening();
@@ -100,7 +100,6 @@ void detectSignal(){
     {
       radio.stopListening();
       delay(100);
-      setSendMode();
       radio.write(&currentData, sizeof(currentData));
       radio.startListening();
     }
@@ -129,17 +128,4 @@ void actLed(){
   analogWrite(r,red);
   analogWrite(g,green);
   analogWrite(b,blue);
-}
-
-void setSendMode(){
-  radio.openWritingPipe(address);
-  radio.setPALevel(RF24_PA_MIN);
-  radio.stopListening();
-  //Serial.println("Send mode set");
-}
-
-void setReceiveMode(){
-  radio.setPALevel(RF24_PA_MIN);
-  radio.startListening();
-  //Serial.println("Receive mode set");
 }
