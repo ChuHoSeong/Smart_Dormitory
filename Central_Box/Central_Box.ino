@@ -54,18 +54,21 @@ struct AIR{
   AirCleanerData center;
   AirCleanerData device;
   AirCleanerData cloude;
+  bool connected = false;
 }airCleaner;
 
 struct HUM{
   HumidifierData center;
   HumidifierData device;
   HumidifierData cloude;
+  bool connected = false;
 }humidifier;
 
 struct SWI{
   SwitchData center;
   SwitchData device;
   SwitchData cloude;
+  bool connected = false;
 }switchControl;
 
 
@@ -175,7 +178,7 @@ void syncData(const byte address[], T &deviceData, const char* deviceName) {
   radio.openWritingPipe(address); // 쓰기 파이프 열기
   radio.openReadingPipe(0, address); // 읽기 파이프 열기
   // 장치에서 최신 데이터를 가져옵니다.
-  get(address, &deviceData.device, sizeof(deviceData.device), deviceName);
+  deviceData.connected = get(address, &deviceData.device, sizeof(deviceData.device), deviceName);
   fromFirebase(deviceData.cloude, deviceName);
 
   Serial.println("get");
@@ -212,7 +215,7 @@ template<> bool checkChangePower<SwitchData>(SwitchData &data1, SwitchData &data
 }
 
 // 특정 주소의 장치로부터 데이터를 받아오는 함수
-void get(const byte address[], void* data, size_t dataSize, const char* deviceName){
+bool get(const byte address[], void* data, size_t dataSize, const char* deviceName){
   
   radio.stopListening();
   
@@ -224,10 +227,12 @@ void get(const byte address[], void* data, size_t dataSize, const char* deviceNa
     radio.read(data, dataSize); // 데이터 수신
     Serial.print("realtime_size = ");
     Serial.println(dataSize);
+    return true;
   }
   else 
   {
     Serial.println(String("*") + deviceName + " system is turned off"); // 시스템 꺼짐 메시지 출력
+    return false;
   } 
 }
 
@@ -273,23 +278,51 @@ void printDeviceData<SwitchData>(SwitchData &data) {
 void printLcd(){
   char buffer[4]; 
 
-  lcd.setCursor(0, 0);
-  sprintf(buffer, "%2d", humidifier.center.temp);
-  lcd.print(buffer);
-  lcd.setCursor(4, 0);
-  sprintf(buffer, "%3d", humidifier.center.humidity);
-  lcd.print(buffer);
-  lcd.setCursor(8, 0);
-  sprintf(buffer, "%3d", airCleaner.center.quality);
-  lcd.print(buffer);
-  lcd.print("ug/m3");
-  
-  lcd.setCursor(3, 1);
-  lcd.print(switchControl.center.power[0] ? "O" : "X");
-  lcd.setCursor(9, 1);
-  lcd.print(switchControl.center.power[1] ? "O" : "X");
-  lcd.setCursor(15, 1);
-  lcd.print(switchControl.center.power[2] ? "O" : "X");
+  if(humidifier.connected)
+  {
+    lcd.setCursor(0, 0);
+    sprintf(buffer, "%2d", humidifier.center.temp);
+    lcd.print(buffer);
+    lcd.setCursor(4, 0);
+    sprintf(buffer, "%3d", humidifier.center.humidity);
+    lcd.print(buffer);
+  }
+  else
+  {
+    lcd.setCursor(0, 0);
+    lcd.print("??");
+    lcd.setCursor(5, 0);
+    lcd.print("??");
+  }
+  if(airCleaner.connected)
+  {
+    lcd.setCursor(8, 0);
+    sprintf(buffer, "%3d", airCleaner.center.quality);
+    lcd.print(buffer);
+  }
+  else
+  {
+    lcd.setCursor(8, 0);
+    lcd.print(" ??");
+  }
+  if(switchControl.connected)
+  {
+    lcd.setCursor(3, 1);
+    lcd.print(switchControl.center.power[0] ? "O" : "X");
+    lcd.setCursor(9, 1);
+    lcd.print(switchControl.center.power[1] ? "O" : "X");
+    lcd.setCursor(15, 1);
+    lcd.print(switchControl.center.power[2] ? "O" : "X");
+  }
+  else
+  {
+    lcd.setCursor(3, 1);
+    lcd.print("?");
+    lcd.setCursor(9, 1);
+    lcd.print("?");
+    lcd.setCursor(15, 1);
+    lcd.print("?");
+  }
 }
 
 template<typename T>

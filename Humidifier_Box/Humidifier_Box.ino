@@ -75,7 +75,7 @@ void detectSignal(){
     else if(strcmp(request, "put")==0)
     {
       delay(200);
-      radio.read(&currentData, sizeof(currentData));
+      if(radio.available())radio.read(&currentData, sizeof(currentData));
     }
   }
 }
