@@ -105,7 +105,7 @@ void setup() {
   Firebase.reconnectWiFi(true);
   
   radio.begin(); // 라디오 통신 시작
-  radio.setPALevel(RF24_PA_MIN);
+  radio.setPALevel(RF24_PA_HIGH);
 
   // I2C 통신 시작
   Wire.begin(D2, D1); // SDA, SCL
@@ -115,10 +115,12 @@ void setup() {
   lcd.backlight();
   // 첫 번째 줄에 텍스트 출력
   lcd.setCursor(0, 0);
-  lcd.print("init completed");
+  lcd.print("??");
+  lcd.write(byte(0xDF));
+  lcd.print("C ??% ??ug/m3");
   // 두 번째 줄에 텍스트 출력
   lcd.setCursor(0, 1);
-  lcd.print("LCD 16x2 + I2C");
+  lcd.print("S1:?  S2:?  S3:?");
 
   //Serial.println(sizeof(airCleaner.device));
   //Serial.println(sizeof(humidifier.device));
@@ -163,7 +165,7 @@ void loop() {
   syncData(SWITCH_ADDRESS, switchControl, "Switch");
   printLcd();
   Serial.println("--------------------");
-  delay(200); // 100ms 지연
+  //delay(200); // 100ms 지연
 }
 
 
@@ -269,22 +271,25 @@ void printDeviceData<SwitchData>(SwitchData &data) {
 }
 
 void printLcd(){
+  char buffer[4]; 
+
   lcd.setCursor(0, 0);
-  lcd.print(humidifier.center.temp);
-  lcd.write(byte(0xDF)); // '°' 기호 출력
-  lcd.print("C ");
-  lcd.print(humidifier.center.humidity);
-  lcd.print("% ");
-  lcd.print(airCleaner.center.quality);
+  sprintf(buffer, "%2d", humidifier.center.temp);
+  lcd.print(buffer);
+  lcd.setCursor(4, 0);
+  sprintf(buffer, "%3d", humidifier.center.humidity);
+  lcd.print(buffer);
+  lcd.setCursor(8, 0);
+  sprintf(buffer, "%3d", airCleaner.center.quality);
+  lcd.print(buffer);
   lcd.print("ug/m3");
   
-  lcd.setCursor(0, 1);
-  lcd.print("Sw1:");
-  lcd.print(switchControl.center.power[0] ? "On" : "Off");
-  lcd.print(" Sw2:");
-  lcd.print(switchControl.center.power[1] ? "On" : "Off");
-  lcd.print(" Sw3:");
-  lcd.print(switchControl.center.power[2] ? "On" : "Off");
+  lcd.setCursor(3, 1);
+  lcd.print(switchControl.center.power[0] ? "O" : "X");
+  lcd.setCursor(9, 1);
+  lcd.print(switchControl.center.power[1] ? "O" : "X");
+  lcd.setCursor(15, 1);
+  lcd.print(switchControl.center.power[2] ? "O" : "X");
 }
 
 template<typename T>
